@@ -116,6 +116,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 		g_richDrawText = new RichDrawText(memDC);		
 
 		// 友好名称超链接 https://blogs.msdn.microsoft.com/murrays/2009/09/24/richedit-friendly-name-hyperlinks/
+		// 友好名称的下划线如何删除？颜色如何修改？
 		g_richDrawText->SetText(L"{\\rtf1 超链接{\\field{\\*\\fldinst HYPERLINK \"https://www.baidu.com/\"}{\\fldrslt 百度百度百度百度}} }");
 
 
