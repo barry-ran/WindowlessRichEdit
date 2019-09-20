@@ -140,6 +140,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 		
 		POINT ptSrc = { 0,0 };
 		
+		POINT ptDst = {wndRect.left, wndRect.top};
 		BLENDFUNCTION blendFunction;
 		blendFunction.AlphaFormat = AC_SRC_ALPHA;
 		blendFunction.BlendFlags = 0;
@@ -147,7 +148,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 		blendFunction.SourceConstantAlpha = 255;
 		// mark:UpdateLayeredWindow png图片自带透明通道配合ULW_ALPHA标记，效果好
 		// ULW_COLORKEY适合将指定颜色透明
-		::UpdateLayeredWindow(hwnd, hdc, &ptSrc, &wndSize, memDC, &ptSrc, 0, &blendFunction, ULW_ALPHA);
+		::UpdateLayeredWindow(hwnd, hdc, &ptDst, &wndSize, memDC, &ptSrc, 0, &blendFunction, ULW_ALPHA);
 
 		::ReleaseDC(hwnd, hdc);
 		::DeleteDC(memDC);
