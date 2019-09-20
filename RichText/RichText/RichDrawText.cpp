@@ -21,8 +21,8 @@ HMODULE RichDrawText::s_hRiched = nullptr;
 
 
 void RichDrawText::SetText(LPCWSTR lpText)
-{	
-	m_textService->TxSetText(lpText);		
+{		
+	m_textService->TxSetText(lpText);	
 }
 
 void RichDrawText::DrawText(HDC dc, const RECT& rect)
@@ -30,6 +30,7 @@ void RichDrawText::DrawText(HDC dc, const RECT& rect)
 	// Draw the text in the windowless control onto the given device context,
   // within the given bounding rectangle.
 	
+	m_rcText = rect;
 	// Alpha修复，否则会导致文字穿透
 	ALPHAINFO ai;
 	CGdiAlpha::AlphaBackup(dc, &rect, ai);
@@ -68,6 +69,18 @@ void RichDrawText::SizeText(HDC dc, RECT& rect)
 	rect.bottom = rect.top + h;
 }
 
+
+HRESULT RichDrawText::TxSendMessage(UINT msg, WPARAM wparam, LPARAM lparam, LRESULT *plresult)
+{
+	return m_textService->TxSendMessage(msg, wparam, lparam, plresult);
+}
+
+
+ITextServices* RichDrawText::GetTextDocument()
+{
+	return m_textService;
+}
+
 HRESULT STDMETHODCALLTYPE RichDrawText::QueryInterface(REFIID riid, void **ppvObject)
 {
 	if (ppvObject == nullptr) {
@@ -97,28 +110,34 @@ ULONG STDMETHODCALLTYPE RichDrawText::Release(void)
 
 typedef HRESULT(_stdcall*CreateTextServicesFunction)(IUnknown*, ITextHost*, IUnknown**);
 
-RichDrawText::RichDrawText()
+RichDrawText::RichDrawText(HDC hDC)
 {		
+	m_hDC = hDC;
 	// Get the current font settings
 	NONCLIENTMETRICS ncm;
 	::ZeroMemory(&ncm, sizeof ncm);
 	ncm.cbSize = sizeof ncm;
 	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof ncm, &ncm, 0);
 
-	HDC hDC = ::GetDC(NULL);
-	int iPointSize = -1 * ::MulDiv(ncm.lfMessageFont.lfHeight, 72, ::GetDeviceCaps(hDC, LOGPIXELSY));
-	::ReleaseDC(NULL, hDC);
+	HDC hDC2 = ::GetDC(NULL);
+	int iPointSize = -1 * ::MulDiv(ncm.lfMessageFont.lfHeight, 72, ::GetDeviceCaps(hDC2, LOGPIXELSY));
+	::ReleaseDC(NULL, hDC2);
 	
 	// Create a default character format
 	::ZeroMemory(&m_charFormat, sizeof(m_charFormat));
 	m_charFormat.cbSize = sizeof(m_charFormat);
+	// CFM_LINK must for support link
 	m_charFormat.dwMask = CFM_BOLD | CFM_CHARSET | CFM_COLOR | CFM_FACE | CFM_ITALIC | CFM_OFFSET |
-		CFM_PROTECTED | CFM_SIZE | CFM_STRIKEOUT | CFM_UNDERLINE;
+		CFM_PROTECTED | CFM_SIZE | CFM_STRIKEOUT |  CFM_LINK | CFM_LINKPROTECTED | CFM_UNDERLINETYPE;
+	m_charFormat.bUnderlineType = CFU_UNDERLINENONE;	
+	// CFE_LINK must for support link
+	// CFE_LINKPROTECTED 汉字是友好名称链接的一部分
+	m_charFormat.dwEffects = CFE_LINK | CFE_LINKPROTECTED | CFE_UNDERLINE;
 	// 20*72=1440 ？duilib is 1440 too
 	m_charFormat.yHeight = 20 * iPointSize;
 	m_charFormat.crTextColor = RGB(255, 255, 255);
 	m_charFormat.bPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;	
-	_tcscpy(m_charFormat.szFaceName, ncm.lfMessageFont.lfFaceName);		
+	_tcscpy(m_charFormat.szFaceName, ncm.lfMessageFont.lfFaceName);
 
 	// Create a default paragraph format
 	::ZeroMemory(&m_paraFormat, sizeof(m_paraFormat));
@@ -140,6 +159,15 @@ RichDrawText::RichDrawText()
 			m_textService = unknown;
 			m_textDoc = unknown;
 
+			LRESULT lResult;
+			// ENM_LINK must for link
+			HRESULT re = m_textService->TxSendMessage(EM_SETEVENTMASK, 0, ENM_LINK, &lResult);
+			//re = m_textService->TxSendMessage(EM_SETEDITSTYLE, 0, SES_EX_HANDLEFRIENDLYURL, &lResult);
+			//re = m_textService->TxSendMessage(EM_AUTOURLDETECT, FALSE, 0, &lResult);
+			
+			// must for link
+			m_textService->OnTxInPlaceActivate(nullptr);
+						
 			//m_textService->OnTxPropertyBitsChange(TXTBIT_BACKSTYLECHANGE, 0);
 		}
 	}
@@ -158,12 +186,14 @@ BOOL RichDrawText::Init()
 
 HDC RichDrawText::TxGetDC()
 {
-	return 0;
+	// must for support link
+	return m_hDC;
 }
 
 INT RichDrawText::TxReleaseDC(HDC hdc)
 {
-	return 0;
+	// 1:success Release
+	return 1;
 }
 
 BOOL RichDrawText::TxShowScrollBar(INT fnBar, BOOL fShow)
@@ -263,7 +293,8 @@ HRESULT RichDrawText::TxDeactivate(LONG lNewState)
 
 HRESULT RichDrawText::TxGetClientRect(LPRECT prc)
 {
-	return E_FAIL;
+	*prc = m_rcText;
+	return S_OK;
 }
 
 HRESULT RichDrawText::TxGetViewInset(LPRECT prc)
@@ -353,6 +384,34 @@ HRESULT RichDrawText::TxGetPropertyBits(DWORD dwMask, DWORD *pdwBits)
 
 HRESULT RichDrawText::TxNotify(DWORD iNotify, void *pv)
 {
+	switch (iNotify)
+	{
+	case EN_LINK:
+	{
+		ENLINK *bnlink = (ENLINK *)pv;		
+		if (bnlink && bnlink->msg == WM_LBUTTONDOWN)
+		{
+			//Call ShellExecute to perform default action based on the type of hyperlink
+
+			WCHAR wszLink[1024] = { 0 };
+			LRESULT lResult = 0;
+			TEXTRANGEW tr;
+			tr.chrg = bnlink->chrg;
+			tr.lpstrText = wszLink;
+			// 对于友好名称超链接，这行代码获取的是超链接本身，而不是友好名称，所以可以直接ShellExecuteW，完美
+			m_textService->TxSendMessage(EM_GETTEXTRANGE, 0, (LPARAM)&tr, &lResult);
+			
+			::OutputDebugStringW(wszLink);
+
+			ShellExecuteW(nullptr, L"Open", wszLink, NULL, NULL, SW_MAXIMIZE);
+		}
+	}
+		break;
+	case EN_SETFOCUS:
+		::OutputDebugStringA("EN_SETFOCUS\n");
+		break;
+	}
+
 	// Claim to have handled the notifcation, even though we always ignore it
 	return S_OK;
 }

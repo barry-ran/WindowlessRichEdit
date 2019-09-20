@@ -72,30 +72,14 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 			NULL,                /* No menu */
 			hThisInstance,       /* Program Instance handler */
 			NULL                 /* No Window Creation data */
-		);
-		
-		/* Make the window visible on the screen */
-		::ShowWindow(hwnd, nCmdShow);		
+		);				
 
 		// 获取系统字体
 		NONCLIENTMETRICS metrics;
 		metrics.cbSize = sizeof(NONCLIENTMETRICS);
 		::SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS),
 			&metrics, 0);
-		HFONT font = ::CreateFontIndirect(&metrics.lfMessageFont);
-
-		RichDrawText::Init();
-		g_richDrawText = new RichDrawText();
-		//g_richDrawText->SetText(L"想要此功能？点击咨询客服");
-		g_richDrawText->SetText(L"{\\rtf1 RE50W by Jim Dunne Copyright (C) 2005\\par http://www.topjimmy.net/tjs \\par {\\field{\\*\\fldinst{HYPERLINK mailto:jim@dunnes.net }}{\\fldrslt{\\cf1\\ul jim@dunnes.net}}}}");
-
-		// 前两个字符红色
-		CComPtr<ITextRange> range;
-		g_richDrawText->Range(0, 2, &range);
-
-		CComPtr<ITextFont> textFont;
-		range->GetFont(&textFont);
-		textFont->SetForeColor(RGB(255, 0, 0));				
+		HFONT font = ::CreateFontIndirect(&metrics.lfMessageFont);					
 		
 		RECT wndRect;
 		::GetWindowRect(hwnd, &wndRect);
@@ -128,6 +112,22 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 		Gdiplus::Graphics graphics(memDC);
 		graphics.DrawImage(&image, 0, 0, wndSize.cx, wndSize.cy);
 
+		RichDrawText::Init();
+		g_richDrawText = new RichDrawText(memDC);		
+
+		// 友好名称超链接 https://blogs.msdn.microsoft.com/murrays/2009/09/24/richedit-friendly-name-hyperlinks/
+		g_richDrawText->SetText(L"{\\rtf1 超链接{\\field{\\*\\fldinst HYPERLINK \"https://www.baidu.com/\"}{\\fldrslt 百度百度百度百度}} }");
+
+
+		// 前两个字符红色
+		CComPtr<ITextRange> range;
+		g_richDrawText->Range(0, 2, &range);
+
+		CComPtr<ITextFont> textFont;
+		range->GetFont(&textFont);
+		textFont->SetForeColor(RGB(255, 0, 0));
+
+
 		RECT rcText;
 		::GetClientRect(hwnd, &rcText);
 
@@ -154,6 +154,8 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 		::DeleteObject(font);
 
 		::SetWindowPos(hwnd, NULL, 500, 500, 0, 0, SWP_NOSIZE);
+		/* Make the window visible on the screen */
+		::ShowWindow(hwnd, nCmdShow);
 
 		/* Run the message loop. It will run until GetMessage() returns 0 */
 		while (GetMessage(&messages, NULL, 0, 0))
@@ -173,15 +175,53 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 /*  This function is called by the Windows function DispatchMessage()  */
 
 LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
+{	
 	switch (message)                  /* handle the messages */
 	{
 	case WM_DESTROY:
 		PostQuitMessage(0);       /* send a WM_QUIT to the message queue */
+		break;	
+	case WM_SETFOCUS:
+		//break;
+		if (g_richDrawText)
+		{
+			//g_richDrawText->GetTextDocument()->OnTxInPlaceActivate(nullptr);
+
+			LRESULT lResult = 0;
+			// WM_SETFOCUS must for link mouse move
+			HRESULT Hr = g_richDrawText->TxSendMessage(message, wParam, lParam, &lResult);			
+			if (S_OK != Hr)
+			{
+				OutputDebugStringA("error\n");
+			}
+		}
 		break;
+	case WM_KILLFOCUS:		
+		if (g_richDrawText)
+		{
+			//g_richDrawText->GetTextDocument()->OnTxInPlaceDeactivate();
+
+			LRESULT lResult = 0;
+			HRESULT Hr = g_richDrawText->TxSendMessage(message, wParam, lParam, &lResult);
+			if (S_OK != Hr)
+			{
+				OutputDebugStringA("error\n");
+			}
+		}
+		break;
+	case WM_MOUSEMOVE:
 	case WM_LBUTTONDOWN:
-		printf("LButtonDown");
-		//::PostMessage(hwnd,WM_NCLBUTTONDOWN,HTCAPTION,lParam);
+	case WM_LBUTTONUP:
+		// must for link click
+		if (g_richDrawText)
+		{
+			LRESULT lResult = 0;
+			HRESULT Hr = g_richDrawText->TxSendMessage(message, wParam, lParam, &lResult);
+			if (S_OK != Hr)
+			{
+				OutputDebugStringA("error\n");
+			}
+		}
 		break;
 	default:                      /* for messages that we don't deal with */
 		return DefWindowProc(hwnd, message, wParam, lParam);

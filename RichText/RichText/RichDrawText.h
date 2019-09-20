@@ -9,7 +9,7 @@
 class RichDrawText : public ITextHost
 {
 public:
-	RichDrawText();
+	RichDrawText(HDC hDC);
 
 	static BOOL Init();	
 
@@ -20,6 +20,8 @@ public:
 	void Range(long cpFirst, long cpLim, ITextRange** ppRange);
 	void SizeText(HDC dc, RECT& rect);
 	void SetDC(HDC hdc);
+	HRESULT TxSendMessage(UINT msg, WPARAM wparam, LPARAM lparam, LRESULT *plresult);
+	ITextServices* GetTextDocument();
 	
 protected:
 	virtual HRESULT STDMETHODCALLTYPE QueryInterface(REFIID riid, void **ppvObject);
@@ -150,8 +152,14 @@ private:
 	CHARFORMAT2W m_charFormat;
 	PARAFORMAT2 m_paraFormat;
 
+	//CHARFORMATW m_charFormat;
+	//PARAFORMAT m_paraFormat;
+
 	CComQIPtr<ITextServices, &IID_ITextServices> m_textService;
 	CComQIPtr<ITextDocument> m_textDoc;
+
+	RECT m_rcText;
+	HDC m_hDC;
 };
 
 #endif //_RICH_DRAW_TEXT_H_
