@@ -114,10 +114,10 @@ RichDrawText::RichDrawText(HDC hDC)
 {		
 	m_hDC = hDC;
 	// Get the current font settings
-	NONCLIENTMETRICS ncm;
+	NONCLIENTMETRICSW ncm;
 	::ZeroMemory(&ncm, sizeof ncm);
 	ncm.cbSize = sizeof ncm;
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof ncm, &ncm, 0);
+	::SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof ncm, &ncm, 0);
 
 	HDC hDC2 = ::GetDC(NULL);
 	int iPointSize = -1 * ::MulDiv(ncm.lfMessageFont.lfHeight, 72, ::GetDeviceCaps(hDC2, LOGPIXELSY));
@@ -137,7 +137,7 @@ RichDrawText::RichDrawText(HDC hDC)
 	m_charFormat.yHeight = 20 * iPointSize;
 	m_charFormat.crTextColor = RGB(255, 255, 255);
 	m_charFormat.bPitchAndFamily = DEFAULT_PITCH | FF_DONTCARE;	
-	_tcscpy(m_charFormat.szFaceName, ncm.lfMessageFont.lfFaceName);
+	wcscpy(m_charFormat.szFaceName, ncm.lfMessageFont.lfFaceName);
 
 	// Create a default paragraph format
 	::ZeroMemory(&m_paraFormat, sizeof(m_paraFormat));
