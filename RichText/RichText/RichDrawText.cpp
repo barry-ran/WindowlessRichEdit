@@ -50,7 +50,6 @@ void RichDrawText::Range(long cpFirst, long cpLim, ITextRange** ppRange)
 	m_textDoc->Range(cpFirst, cpLim, ppRange);
 }
 
-
 void RichDrawText::SizeText(HDC dc, RECT& rect)
 {
 	LONG w = rect.right - rect.left;

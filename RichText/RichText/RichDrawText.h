@@ -17,9 +17,8 @@ public:
 
 	void SetText(LPCWSTR lpText);
 	void DrawText(HDC dc, const RECT& rect);
-	void Range(long cpFirst, long cpLim, ITextRange** ppRange);
-	void SizeText(HDC dc, RECT& rect);
-	void SetDC(HDC hdc);
+	void Range(long cpFirst, long cpLim, ITextRange** ppRange);	
+	void SizeText(HDC dc, RECT& rect);	
 	HRESULT TxSendMessage(UINT msg, WPARAM wparam, LPARAM lparam, LRESULT *plresult);
 	ITextServices* GetTextDocument();
 	

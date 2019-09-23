@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "RichText.h"
 
+#include <windowsx.h>
 #include <stdio.h>
 #include <gdiplus.h>
 using namespace Gdiplus;
@@ -18,6 +19,12 @@ LRESULT CALLBACK WindowProcedure(HWND, UINT, WPARAM, LPARAM);
 
 /*  Make the class name into a global variable  */
 TCHAR szClassName[] = _T("PNGDialog");
+
+HDC g_memDC;
+HWND g_hWnd;
+#define  START_POS 3
+#define  STOP_POS 5
+#define  MY_LINK "https://blog.csdn.net/rankun1"
 
 int WINAPI WinMain(HINSTANCE hThisInstance,
 	HINSTANCE hPrevInstance,
@@ -72,7 +79,8 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 			NULL,                /* No menu */
 			hThisInstance,       /* Program Instance handler */
 			NULL                 /* No Window Creation data */
-		);				
+		);		
+		g_hWnd = hwnd;
 
 		// 获取系统字体
 		NONCLIENTMETRICS metrics;
@@ -107,6 +115,7 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 		HBITMAP memBitmap = ::CreateDIBSection(memDC, &bitmapinfo, 0, NULL, 0, 0);
 
 		::SelectObject(memDC, memBitmap);		
+		g_memDC = memDC;
 
 		Gdiplus::Image image(L"bg.png");
 		Gdiplus::Graphics graphics(memDC);
@@ -117,17 +126,16 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 
 		// 友好名称超链接 https://blogs.msdn.microsoft.com/murrays/2009/09/24/richedit-friendly-name-hyperlinks/
 		// 友好名称的下划线如何删除？颜色如何修改？
-		g_richDrawText->SetText(L"{\\rtf1 超链接{\\field{\\*\\fldinst HYPERLINK \"https://www.baidu.com/\"}{\\fldrslt 百度百度百度百度}} }");
+		g_richDrawText->SetText(L"{\\rtf1 超链接测试一下{\\field{\\*\\fldinst HYPERLINK \"https://www.baidu.com/\"}{\\fldrslt 百度百度百度百度}} }");
 
 
-		// 前两个字符红色
+		// 红色字符（自己模拟超链接）		
 		CComPtr<ITextRange> range;
-		g_richDrawText->Range(0, 2, &range);
+		g_richDrawText->Range(START_POS, STOP_POS, &range);
 
 		CComPtr<ITextFont> textFont;
 		range->GetFont(&textFont);
 		textFont->SetForeColor(RGB(255, 0, 0));
-
 
 		RECT rcText;
 		::GetClientRect(hwnd, &rcText);
@@ -151,8 +159,8 @@ int WINAPI WinMain(HINSTANCE hThisInstance,
 		::UpdateLayeredWindow(hwnd, hdc, &ptDst, &wndSize, memDC, &ptSrc, 0, &blendFunction, ULW_ALPHA);
 
 		::ReleaseDC(hwnd, hdc);
-		::DeleteDC(memDC);
-		::DeleteObject(memBitmap);
+		//::DeleteDC(memDC);
+		//::DeleteObject(memBitmap);
 		::DeleteObject(font);
 
 		::SetWindowPos(hwnd, NULL, 500, 500, 0, 0, SWP_NOSIZE);
@@ -211,8 +219,49 @@ LRESULT CALLBACK WindowProcedure(HWND hwnd, UINT message, WPARAM wParam, LPARAM 
 			}
 		}
 		break;
-	case WM_MOUSEMOVE:
 	case WM_LBUTTONDOWN:
+		if (g_richDrawText)
+		{
+			POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+			//::ClientToScreen(g_hWnd, &pt);
+
+			RECT rcLink;
+			LONG xPos, yPos;
+			char temp[256];
+
+			CComPtr<ITextRange> range;
+			// yes, STOP_POS - 1 is right
+			g_richDrawText->Range(START_POS, STOP_POS - 1, &range);
+
+			range->GetPoint(tomStart | TA_TOP | TA_LEFT, &xPos, &yPos);
+			sprintf(temp, "GetPoint left top %d x %d", xPos, yPos);
+			OutputDebugStringA(temp);
+			OutputDebugStringA("\n");
+			rcLink.left = xPos;
+			rcLink.top = yPos;
+
+			range->GetPoint(tomEnd | TA_BOTTOM | TA_RIGHT, &xPos, &yPos);
+			sprintf(temp, "GetPoint right bottom %d x %d", xPos, yPos);
+			OutputDebugStringA(temp);
+			OutputDebugStringA("\n");
+			rcLink.right = xPos;
+			rcLink.bottom = yPos;
+
+			sprintf(temp, "GetPoint mouse move %d x %d", pt.x, pt.y);
+			OutputDebugStringA(temp);
+			OutputDebugStringA("\n");
+
+			if (::PtInRect(&rcLink, pt))
+			{
+				OutputDebugStringA("true\n");
+				ShellExecuteA(nullptr, "Open", MY_LINK, NULL, NULL, SW_MAXIMIZE);
+			}
+			else
+			{
+				OutputDebugStringA("false\n");
+			}
+		}
+	case WM_MOUSEMOVE:		
 	case WM_LBUTTONUP:
 		// must for link click
 		if (g_richDrawText)
